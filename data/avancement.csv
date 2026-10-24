@@ -1,0 +1,21 @@
+﻿date,activite,quantite_prevue,quantite_realisee,unite,ouvriers,heures_equipe,observations
+2026-09-01,Fouilles,12,10,m3,5,7,Sol plus compact que prévu
+2026-09-02,Fouilles,10,10,m3,5,7,
+2026-09-03,Béton de propreté,8,6,m3,6,6,Livraison tardive
+2026-09-04,Béton de propreté,6,6,m3,6,6,
+2026-09-05,Ferraillage des fondations,350,300,kg,4,7,Manque de barres de diamètre prévu
+2026-09-07,Ferraillage des fondations,250,260,kg,5,7,
+2026-09-08,Coffrage des fondations,40,35,m2,4,6,
+2026-09-09,Coffrage des fondations,30,30,m2,4,6,
+2026-09-10,Bétonnage des fondations,12,10,m3,7,8,Pluie en fin de journée
+2026-09-11,Bétonnage des fondations,8,8,m3,7,8,
+2026-09-12,Maçonnerie du soubassement,24,20,m2,6,7,
+2026-09-14,Maçonnerie du soubassement,20,22,m2,6,7,
+2026-09-15,Remblai,18,15,m3,4,6,Compactage supplémentaire
+2026-09-16,Remblai,12,12,m3,4,6,
+2026-09-17,Dallage,35,30,m2,8,8,Attente de béton
+2026-09-18,Dallage,25,26,m2,8,8,
+2026-09-19,Élévation des murs RDC,28,24,m2,7,7,
+2026-09-21,Élévation des murs RDC,30,31,m2,7,7,
+2026-09-22,Poteaux RDC,6,5,unité,5,8,Contrôle du coffrage
+2026-09-23,Poteaux RDC,4,4,unité,5,8,

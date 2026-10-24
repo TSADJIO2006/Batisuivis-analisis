@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="collection-page">
+<section class="welcome-panel mb-4">
+  <div>
+    <span class="eyebrow">SAISIE ET COLLECTE</span>
+    <h2>Centre de collecte des données</h2>
+    <p>Les relevés d’avancement sont reliés aux phases du planning. Les données alimentent les indicateurs et les graphiques du tableau de bord pour le chantier sélectionné.</p>
+  </div>
+  {% if site %}
+  <form method="get" class="site-select">
+    <label for="site_id">Chantier concerné</label>
+    <select class="form-select" name="site_id" id="site_id" onchange="this.form.submit()">
+      {% for s in sites %}<option value="{{ s.id }}" {% if s.id == site.id %}selected{% endif %}>{{ s.name }}</option>{% endfor %}
+    </select>
+  </form>
+  {% endif %}
+</section>
+
+{% if site %}
+<div class="collection-grid">
+  <section class="panel collection-form">
+    <div class="collection-title"><span class="collection-icon">▦</span><div><h3>Créer un chantier</h3><p>Informations générales et budget</p></div></div>
+    <form action="{{ url_for('add_site') }}" method="post" class="row g-3">
+      <input type="hidden" name="return_to" value="collection_page">
+      <div class="col-12"><label class="form-label">Nom du chantier</label><input class="form-control" name="name" required placeholder="Ex. Construction d'un bâtiment R+2"></div>
+      <div class="col-md-6"><label class="form-label">Localisation</label><input class="form-control" name="location" required placeholder="Ville, quartier"></div>
+      <div class="col-md-6"><label class="form-label">Responsable</label><input class="form-control" name="manager" required placeholder="Nom du responsable"></div>
+      <div class="col-md-6"><label class="form-label">Date de début</label><input class="form-control" type="date" name="start_date" required value="{{ today }}"></div>
+      <div class="col-md-6"><label class="form-label">Date de fin prévue</label><input class="form-control" type="date" name="end_date" required value="{{ today }}"></div>
+      <div class="col-12"><label class="form-label">Budget prévisionnel (FCFA)</label><input class="form-control" type="number" min="0" step="1" name="budget" required></div>
+      <div class="col-12"><button class="btn btn-primary">Enregistrer le chantier</button></div>
+    </form>
+  </section>
+
+  <section class="panel collection-form">
+    <div class="collection-title"><span class="collection-icon">✓</span><div><h3>Avancement des travaux</h3><p>Production, équipe et observations quotidiennes</p></div></div>
+    <form action="{{ url_for('add_progress') }}" method="post" class="row g-3">
+      <input type="hidden" name="site_id" value="{{ site.id }}"><input type="hidden" name="return_to" value="collection_page">
+      <div class="col-md-6"><label class="form-label">Date</label><input class="form-control" type="date" name="work_date" required value="{{ today }}"></div>
+      <div class="col-md-6"><label class="form-label">Activité / phase du planning</label><input class="form-control" name="activity" list="planning-activities" required placeholder="Choisis une phase du planning ou saisis une activité"><datalist id="planning-activities">{% for task in planning_tasks %}<option value="{{ task.title }}">{% endfor %}</datalist><small class="text-muted">Utilise le même intitulé que le planning pour relier automatiquement le relevé à la bonne tâche.</small></div>
+      <div class="col-4"><label class="form-label">Quantité prévue</label><input class="form-control" type="number" step="0.01" min="0" name="planned_qty" required></div>
+      <div class="col-4"><label class="form-label">Quantité réalisée</label><input class="form-control" type="number" step="0.01" min="0" name="actual_qty" required></div>
+      <div class="col-4"><label class="form-label">Unité</label><select class="form-select" name="unit"><option>m²</option><option>m³</option><option>kg</option><option>sac</option><option>unité</option><option>ml</option></select></div>
+      <div class="col-md-6"><label class="form-label">Nombre d'ouvriers</label><input class="form-control" type="number" min="0" name="workers" required></div>
+      <div class="col-md-6"><label class="form-label">Heures de l'équipe</label><input class="form-control" type="number" step="0.5" min="0" name="hours" required></div>
+      <div class="col-12"><label class="form-label">Observations</label><textarea class="form-control" rows="2" name="notes" placeholder="Météo, retard, contrôle qualité…"></textarea></div>
+      <div class="col-12"><button class="btn btn-primary">Enregistrer l'avancement</button></div>
+    </form>
+  </section>
+
+  <section class="panel collection-form">
+    <div class="collection-title"><span class="collection-icon">⬡</span><div><h3>Mouvements de matériaux</h3><p>Stocks, entrées, consommations et prix</p></div></div>
+    <form action="{{ url_for('add_material') }}" method="post" class="row g-3">
+      <input type="hidden" name="site_id" value="{{ site.id }}"><input type="hidden" name="return_to" value="collection_page">
+      <div class="col-md-6"><label class="form-label">Date</label><input class="form-control" type="date" name="record_date" required value="{{ today }}"></div>
+      <div class="col-md-6"><label class="form-label">Matériau</label><input class="form-control" name="material" required placeholder="Ex. Ciment"></div>
+      <div class="col-4"><label class="form-label">Stock initial</label><input class="form-control" type="number" min="0" step="0.01" name="opening_stock" required></div>
+      <div class="col-4"><label class="form-label">Entrées</label><input class="form-control" type="number" min="0" step="0.01" name="received_qty" required></div>
+      <div class="col-4"><label class="form-label">Consommé</label><input class="form-control" type="number" min="0" step="0.01" name="used_qty" required></div>
+      <div class="col-md-6"><label class="form-label">Unité</label><select class="form-select" name="unit"><option>sac</option><option>m³</option><option>kg</option><option>unité</option><option>litre</option></select></div>
+      <div class="col-md-6"><label class="form-label">Prix unitaire (FCFA)</label><input class="form-control" type="number" min="0" step="0.01" name="unit_price" required></div>
+      <div class="col-12"><button class="btn btn-primary">Enregistrer le mouvement</button></div>
+    </form>
+  </section>
+
+  <section class="panel collection-form">
+    <div class="collection-title"><span class="collection-icon">₣</span><div><h3>Dépenses du chantier</h3><p>Suivi des coûts engagés</p></div></div>
+    <form action="{{ url_for('add_expense') }}" method="post" class="row g-3">
+      <input type="hidden" name="site_id" value="{{ site.id }}"><input type="hidden" name="return_to" value="collection_page">
+      <div class="col-md-6"><label class="form-label">Date</label><input class="form-control" type="date" name="expense_date" required value="{{ today }}"></div>
+      <div class="col-md-6"><label class="form-label">Catégorie</label><select class="form-select" name="category"><option>Matériaux</option><option>Main-d'œuvre</option><option>Transport</option><option>Matériel</option><option>Autres</option></select></div>
+      <div class="col-12"><label class="form-label">Phase / activité concernée</label><select class="form-select" name="activity"><option value="">Non affectée à une phase précise</option>{% for task in planning_tasks %}<option value="{{ task.title }}">{{ task.title }}</option>{% endfor %}</select><small class="text-muted">Ex. ciment pour fondations, ferraillage, maçonnerie. Cette liaison permet de comparer les coûts par phase.</small></div>
+      <div class="col-12"><label class="form-label">Description</label><input class="form-control" name="description" required placeholder="Ex. Achat de ciment pour les fondations et livraison"></div>
+      <div class="col-12"><label class="form-label">Montant (FCFA)</label><input class="form-control" type="number" min="0" step="1" name="amount" required></div>
+      <div class="col-12"><button class="btn btn-primary">Enregistrer la dépense</button></div>
+    </form>
+  </section>
+
+  <section class="panel collection-form">
+    <div class="collection-title"><span class="collection-icon">!</span><div><h3>Déclarer un incident</h3><p>Causes d'arrêt et temps perdu</p></div></div>
+    <form action="{{ url_for('add_incident') }}" method="post" class="row g-3">
+      <input type="hidden" name="site_id" value="{{ site.id }}"><input type="hidden" name="return_to" value="collection_page">
+      <div class="col-md-6"><label class="form-label">Date</label><input class="form-control" type="date" name="incident_date" required value="{{ today }}"></div>
+      <div class="col-md-6"><label class="form-label">Catégorie</label><select class="form-select" name="category"><option>Manque de matériaux</option><option>Livraison tardive</option><option>Météo</option><option>Problème technique</option><option>Main-d'œuvre</option><option>Approvisionnement</option><option>Autre</option></select></div>
+      <div class="col-12"><label class="form-label">Heures perdues</label><input class="form-control" type="number" min="0" step="0.5" name="hours_lost" required></div>
+      <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" name="description" rows="2" required placeholder="Décris l'incident et ses conséquences"></textarea></div>
+      <div class="col-12"><button class="btn btn-primary">Enregistrer l'incident</button></div>
+    </form>
+  </section>
+</div>
+
+<section class="panel mt-4">
+  <div class="collection-title"><span class="collection-icon">▤</span><div><h3>Historique récent des collectes</h3><p>Dernières données enregistrées pour ce chantier</p></div></div>
+  <div class="row g-3">
+    <div class="col-lg-6"><h4 class="history-heading">Avancement récent</h4><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Activité</th><th>Prévu</th><th>Réalisé</th></tr></thead><tbody>{% for p in recent_progress %}<tr><td>{{ p.work_date }}</td><td>{{ p.activity }}</td><td>{{ p.planned_qty }} {{ p.unit }}</td><td>{{ p.actual_qty }} {{ p.unit }}</td></tr>{% else %}<tr><td colspan="4">Aucune donnée.</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-6"><h4 class="history-heading">Dépenses récentes</h4><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Catégorie</th><th>Phase</th><th>Description</th><th>Montant</th></tr></thead><tbody>{% for e in expenses[:6] %}<tr><td>{{ e.expense_date }}</td><td>{{ e.category }}</td><td>{{ e.activity or "Non affectée" }}</td><td>{{ e.description }}</td><td>{{ "{:,.0f}".format(e.amount).replace(",", " ") }} FCFA</td></tr>{% else %}<tr><td colspan="5">Aucune dépense.</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-6"><h4 class="history-heading">Matériaux récents</h4><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Matériau</th><th>Entrées</th><th>Consommé</th></tr></thead><tbody>{% for m in materials[:6] %}<tr><td>{{ m.record_date }}</td><td>{{ m.material }}</td><td>{{ m.received_qty }} {{ m.unit }}</td><td>{{ m.used_qty }} {{ m.unit }}</td></tr>{% else %}<tr><td colspan="4">Aucun mouvement.</td></tr>{% endfor %}</tbody></table></div></div>
+    <div class="col-lg-6"><h4 class="history-heading">Incidents récents</h4><div class="table-responsive"><table class="table table-sm align-middle"><thead><tr><th>Date</th><th>Cause</th><th>Heures perdues</th></tr></thead><tbody>{% for i in incidents[:6] %}<tr><td>{{ i.incident_date }}</td><td>{{ i.category }}</td><td>{{ i.hours_lost }}</td></tr>{% else %}<tr><td colspan="3">Aucun incident.</td></tr>{% endfor %}</tbody></table></div></div>
+  </div>
+</section>
+{% else %}
+<div class="alert alert-warning">Aucun chantier disponible. Crée d'abord un chantier avec le formulaire ci-dessus ou depuis le menu Chantiers.</div>
+{% endif %}
+</div>
+{% endblock %}

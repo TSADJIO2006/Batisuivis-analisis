@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="intro"><div><span class="eyebrow">MON ESPACE</span><h2>Profil utilisateur</h2><p>Modifie ta photo et le nom affiché dans BatiSuivi Analytics.</p></div></div>
+<section class="panel" style="max-width:820px">
+<div class="d-flex align-items-center gap-3 mb-4">
+{% if profile_user.profile_photo %}<img src="{{ url_for('static', filename=profile_user.profile_photo) }}" alt="Photo de profil" style="width:100px;height:100px;border-radius:50%;object-fit:cover;border:3px solid #4b83df">{% else %}<div class="profile" style="width:100px;height:100px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:2rem">{{ profile_user.full_name[:2]|upper }}</div>{% endif %}
+<div><h3 class="mb-1">{{ profile_user.full_name }}</h3><p class="muted mb-1">{{ profile_user.username }}</p><span class="badge text-bg-info">{{ 'Administrateur' if profile_user.role=='admin' else ('Agent de collecte' if profile_user.role=='collecteur' else 'Maître d’ouvrage · consultation') }}</span></div>
+</div>
+<form method="post" enctype="multipart/form-data" class="row g-3"><div class="col-md-6"><label class="form-label" for="full_name">Nom affiché</label><input class="form-control" id="full_name" name="full_name" value="{{ profile_user.full_name }}" required maxlength="120"></div><div class="col-md-6"><label class="form-label" for="profile_photo">Photo de profil (JPG, PNG ou WEBP)</label><input class="form-control" id="profile_photo" name="profile_photo" type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"></div><div class="col-12"><button class="btn btn-primary" type="submit">Enregistrer les modifications</button></div></form>
+<hr><p><strong>Identifiant :</strong> {{ profile_user.username }}</p><p><strong>Compte créé le :</strong> {{ profile_user.created_at }}</p><p><strong>Base de données :</strong> SQLite · batisuivi.db</p><p class="muted">Cette version pédagogique fonctionne sans compte ni mot de passe.</p>
+</section>
+{% endblock %}
