@@ -97,25 +97,96 @@ def show_df(sql, params=()):
 
 if page=='Tableau de bord':
     st.title('Tableau de bord')
-    st.write('Vue synthétique de l’avancement, des dépenses et des difficultés du chantier sélectionné.')
+    st.write('Les indicateurs ci-dessous sont recalculés à partir des enregistrements du chantier sélectionné.')
     if require_site():
-        prog=query_df('SELECT * FROM progress WHERE site_id=?',(selected_id,)); exp=query_df('SELECT * FROM expenses WHERE site_id=?',(selected_id,)); inc=query_df('SELECT * FROM incidents WHERE site_id=?',(selected_id,)); mats=query_df('SELECT * FROM materials WHERE site_id=?',(selected_id,))
+        # Relecture directe de SQLite à chaque exécution Streamlit : aucun chiffre statique/caché.
+        if st.button('🔄 Actualiser les indicateurs'):
+            st.rerun()
+        prog=query_df('SELECT * FROM progress WHERE site_id=? ORDER BY work_date,id',(selected_id,))
+        exp=query_df('SELECT * FROM expenses WHERE site_id=? ORDER BY expense_date,id',(selected_id,))
+        inc=query_df('SELECT * FROM incidents WHERE site_id=?',(selected_id,))
+        mats=query_df('SELECT * FROM materials WHERE site_id=?',(selected_id,))
         planning=query_df('SELECT * FROM planning WHERE site_id=?',(selected_id,))
-        spent=float(exp.amount.sum()) if not exp.empty else 0; completion=(float((planning.status.isin(['Réalisé','Terminé','Validé'])).sum())/len(planning)*100 if not planning.empty else 0)
-        totalhours=float(prog.hours.sum()) if not prog.empty else 0; qty=float(prog.actual_qty.sum()) if not prog.empty else 0
-        a,b,c,d=st.columns(4); a.metric('Budget prévisionnel',money(site['budget'])); b.metric('Dépenses engagées',money(spent)); c.metric('Budget restant',money(site['budget']-spent)); d.metric('Phases réalisées',f'{completion:.1f}%')
-        e,f,g,h=st.columns(4); e.metric('Relevés de suivi',len(prog)); f.metric('Quantité réalisée',f'{qty:,.1f}'.replace(',',' ')); g.metric('Incidents',len(inc)); h.metric('Heures perdues',f"{inc.hours_lost.sum() if not inc.empty else 0:.1f} h")
-        st.progress(min(max(spent/site['budget'] if site['budget'] else 0,0),1),text='Consommation du budget')
+        quotes=query_df('SELECT quantity,unit_price FROM quotes WHERE site_id=?',(selected_id,))
+
+        budget=float(site.get('budget') or 0)
+        spent=float(pd.to_numeric(exp['amount'],errors='coerce').fillna(0).sum()) if not exp.empty else 0.0
+        balance=budget-spent
+        budget_rate=(spent/budget*100) if budget>0 else 0.0
+        total_hours=float(pd.to_numeric(prog['hours'],errors='coerce').fillna(0).sum()) if not prog.empty else 0.0
+        total_actual=float(pd.to_numeric(prog['actual_qty'],errors='coerce').fillna(0).sum()) if not prog.empty else 0.0
+        incident_hours=float(pd.to_numeric(inc['hours_lost'],errors='coerce').fillna(0).sum()) if not inc.empty else 0.0
+
+        # Les unités (m³, kg, m²...) ne sont pas additionnées entre elles.
+        # On calcule d'abord le taux de chaque activité dans sa propre unité,
+        # puis la moyenne des taux d'activités pour obtenir un indicateur lisible.
+        if not prog.empty:
+            activity_rates=(prog.groupby(['activity','unit'],dropna=False)
+                .agg(planned=('planned_qty','sum'),actual=('actual_qty','sum')).reset_index())
+            valid=activity_rates[activity_rates['planned']>0].copy()
+            valid['rate']=valid.apply(lambda r: min(max(float(r['actual'])/float(r['planned'])*100,0),100),axis=1)
+            work_rate=float(valid['rate'].mean()) if not valid.empty else 0.0
+            completed_activities=int((valid['actual']>=valid['planned']).sum())
+            activity_count=len(valid)
+        else:
+            activity_rates=pd.DataFrame(columns=['activity','unit','planned','actual','rate'])
+            work_rate=0.0; completed_activities=0; activity_count=0
+
+        completed_planning=int(planning['status'].isin(['Réalisé','Terminé','Validé']).sum()) if not planning.empty else 0
+        quote_total=float((quotes['quantity']*quotes['unit_price']).sum()) if not quotes.empty else 0.0
+        stock_value=float(((mats['opening_stock']+mats['received_qty']-mats['used_qty'])*mats['unit_price']).clip(lower=0).sum()) if not mats.empty else 0.0
+
+        a,b,c,d=st.columns(4)
+        a.metric('Budget prévisionnel',money(budget))
+        b.metric('Dépenses enregistrées',money(spent))
+        c.metric('Budget restant',money(balance),delta=f'{-budget_rate:.1f} % consommé' if budget else None,delta_color='inverse')
+        d.metric('Avancement des travaux',f'{work_rate:.2f}%')
+        e,f,g,h=st.columns(4)
+        e.metric('Relevés de suivi',len(prog))
+        f.metric('Activités suivies',activity_count)
+        g.metric('Activités achevées',completed_activities)
+        h.metric('Incidents',len(inc))
+        i,j,k,l=st.columns(4)
+        i.metric('Quantités déclarées réalisées',f'{total_actual:,.2f}'.replace(',',' '))
+        j.metric('Heures de travail',f'{total_hours:.1f} h')
+        k.metric('Heures perdues',f'{incident_hours:.1f} h')
+        l.metric('Valeur du devis',money(quote_total))
+
+        st.progress(min(max(budget_rate/100,0),1),text=f'Consommation du budget : {budget_rate:.1f}%')
+        st.caption('L’avancement est la moyenne des taux par activité (chaque activité conserve son unité). Les activités sans quantité prévue positive ne sont pas incluses. Les phases du planning sont suivies séparément.')
+        st.metric('Phases du planning terminées',f'{completed_planning} / {len(planning)}' if not planning.empty else 'Aucune phase planifiée')
+
         left,right=st.columns(2)
         with left:
             st.subheader('Dépenses par catégorie')
-            if not exp.empty: st.bar_chart(exp.groupby('category',as_index=False).amount.sum().set_index('category'))
-            else: st.info('Aucune dépense.')
+            if not exp.empty:
+                costs=exp.groupby('category',as_index=False)['amount'].sum().set_index('category')
+                st.bar_chart(costs)
+            else: st.info('Aucune dépense enregistrée pour ce chantier.')
         with right:
+            st.subheader('Dépenses dans le temps')
+            if not exp.empty:
+                daily_exp=exp.groupby('expense_date')['amount'].sum().sort_index()
+                st.line_chart(daily_exp)
+            else: st.info('Les dépenses apparaîtront ici après leur enregistrement.')
+        left2,right2=st.columns(2)
+        with left2:
+            st.subheader('Avancement par activité')
+            if not activity_rates.empty:
+                chart=activity_rates[activity_rates['planned']>0].copy()
+                chart['Taux (%)']=chart.apply(lambda r:min(max(float(r['actual'])/float(r['planned'])*100,0),100),axis=1)
+                chart['Activité']=chart['activity']+' ('+chart['unit']+')'
+                st.bar_chart(chart.set_index('Activité')['Taux (%)'])
+            else: st.info('Aucune quantité prévue/réalisée enregistrée.')
+        with right2:
             st.subheader('Quantités réalisées par date')
-            if not prog.empty: st.line_chart(prog.groupby('work_date',as_index=True).actual_qty.sum())
+            if not prog.empty:
+                st.line_chart(prog.groupby('work_date')['actual_qty'].sum().sort_index())
             else: st.info('Aucun relevé de suivi.')
-        st.subheader('Derniers relevés'); show_df('SELECT work_date AS Date,activity AS Activité,planned_qty AS Prévu,actual_qty AS Réalisé,unit AS Unité,workers AS Ouvriers,hours AS Heures,notes AS Notes FROM progress WHERE site_id=? ORDER BY work_date DESC LIMIT 10',(selected_id,))
+        st.subheader('Derniers relevés')
+        show_df('SELECT work_date AS Date,activity AS Activité,planned_qty AS Prévu,actual_qty AS Réalisé,unit AS Unité,workers AS Ouvriers,hours AS Heures,notes AS Notes FROM progress WHERE site_id=? ORDER BY work_date DESC,id DESC LIMIT 10',(selected_id,))
+        st.subheader('Dernières dépenses')
+        show_df('SELECT expense_date AS Date,category AS Catégorie,description AS Description,amount AS Montant_FCFA FROM expenses WHERE site_id=? ORDER BY expense_date DESC,id DESC LIMIT 10',(selected_id,))
 
 elif page=='Chantiers':
     st.title('Gestion des chantiers')
@@ -209,9 +280,15 @@ elif page=='Analyses et rapports':
     st.title('Analyses et rapports')
     if require_site():
         prog=query_df('SELECT * FROM progress WHERE site_id=?',(selected_id,)); exp=query_df('SELECT * FROM expenses WHERE site_id=?',(selected_id,)); inc=query_df('SELECT * FROM incidents WHERE site_id=?',(selected_id,)); q=query_df('SELECT quantity*unit_price AS total FROM quotes WHERE site_id=?',(selected_id,)); mats=query_df('SELECT * FROM materials WHERE site_id=?',(selected_id,))
-        total_exp=float(exp.amount.sum()) if not exp.empty else 0; planned=float(prog.planned_qty.sum()) if not prog.empty else 0; actual=float(prog.actual_qty.sum()) if not prog.empty else 0; hours=float(prog.hours.sum()) if not prog.empty else 0
-        a,b,c=st.columns(3); a.metric('Avancement des quantités*',f'{actual/planned*100:.1f}%' if planned else '—'); b.metric('Productivité moyenne',f'{actual/hours:.2f} unité/h' if hours else '—'); c.metric('Devis estimatif',money(q.total.sum() if not q.empty else 0))
-        st.caption('*Les quantités de différentes unités ne sont pas directement comparables ; cet indicateur est indicatif.')
+        total_exp=float(exp.amount.sum()) if not exp.empty else 0; hours=float(prog.hours.sum()) if not prog.empty else 0
+        if not prog.empty:
+            by_activity=prog.groupby(['activity','unit']).agg(planned=('planned_qty','sum'),actual=('actual_qty','sum')).reset_index()
+            by_activity=by_activity[by_activity.planned>0]
+            progress_rate=float((by_activity.actual/by_activity.planned*100).clip(0,100).mean()) if not by_activity.empty else 0
+            actual_total=float(prog.actual_qty.sum())
+        else: progress_rate=0; actual_total=0
+        a,b,c=st.columns(3); a.metric('Avancement moyen des activités',f'{progress_rate:.2f}%' if not prog.empty else '—'); b.metric('Productivité moyenne',f'{actual_total/hours:.2f} unité/h' if hours else '—'); c.metric('Devis estimatif',money(q.total.sum() if not q.empty else 0))
+        st.caption('L’avancement est la moyenne des taux par activité et par unité ; les m³, kg et m² ne sont pas additionnés entre eux.')
         st.subheader('Dépenses par phase');
         if not exp.empty: st.bar_chart(exp.groupby(exp.activity.replace('', 'Non affectées')).amount.sum())
         st.subheader('Synthèse du chantier')
